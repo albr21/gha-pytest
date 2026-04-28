@@ -104,7 +104,7 @@ runs:
           icon=":x:"
         fi
 
-        echo "## :test_tube: Test Coverage Report: ${icon}" >> "$GITHUB_STEP_SUMMARY"
+        echo "## :test_tube: Coverage Report: ${icon}" >> "$GITHUB_STEP_SUMMARY"
         echo "" >> "$GITHUB_STEP_SUMMARY"
 
         echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
