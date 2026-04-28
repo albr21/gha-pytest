@@ -42,48 +42,53 @@ runs:
       if: always()
       run: |-
         if [ ! -f junit.xml ]; then
-          echo "## :x: Test report not generated" >> "$GITHUB_STEP_SUMMARY"
+          echo "## :rotating_light: Test report not generated" >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
-
-        echo "## :clipboard: Test Results" >> "$GITHUB_STEP_SUMMARY"
-        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         read tests failures errors skipped <<<$(python3 -c "
         import xml.etree.ElementTree as ET
         tree = ET.parse('junit.xml')
         root = tree.getroot()
-        tests = int(root.attrib.get('tests',0))
-        failures = int(root.attrib.get('failures',0))
-        errors = int(root.attrib.get('errors',0))
-        skipped = int(root.attrib.get('skipped',0))
+        if root.tag == 'testsuites':
+            node = root.find('testsuite') or root
+        else:
+            node = root
+        tests = int(node.attrib.get('tests', 0))
+        failures = int(node.attrib.get('failures', 0))
+        errors = int(node.attrib.get('errors', 0))
+        skipped = int(node.attrib.get('skipped', 0))
         print(tests, failures, errors, skipped)
         ")
 
         if [ "$failures" -eq 0 ] && [ "$errors" -eq 0 ]; then
           icon=":white_check_mark:"
         else
-          icon=":rotating_light:"
+          icon=":x:"
         fi
+
+        passed=$((tests - failures - errors - skipped))
+
+        echo "## :clipboard: Test Results: ${icon}" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
         echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-        echo "| ${icon} Total tests | $tests |" >> "$GITHUB_STEP_SUMMARY"
-        echo "| Failures | $failures |" >> "$GITHUB_STEP_SUMMARY"
-        echo "| Errors | $errors |" >> "$GITHUB_STEP_SUMMARY"
-        echo "| Skipped | $skipped |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| :white_check_mark: Passed | $passed |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| :x: Failures | $failures |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| :x: Errors | $errors |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| :large_blue_circle: Skipped | $skipped |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| **Total** | **$tests** |" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
       shell: ${{ inputs.command-line-interpreter }}
 
     - name: Coverage report summary
       if: always()
       run: |-
         if [ ! -f coverage.xml ]; then
-          echo "## :x: Coverage report not generated" >> "$GITHUB_STEP_SUMMARY"
+          echo "## :rotating_light: Coverage report not generated" >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
-
-        echo "## :test_tube: Test Coverage Report" >> "$GITHUB_STEP_SUMMARY"
-        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         line_rate=$(python3 -c "
         import xml.etree.ElementTree as ET
@@ -96,12 +101,15 @@ runs:
         if [ "$(python3 -c "print('1' if ${line_rate} >= ${threshold} else '0')")" = "1" ]; then
           icon=":white_check_mark:"
         else
-          icon=":rotating_light:"
+          icon=":x:"
         fi
+
+        echo "## :test_tube: Test Coverage Report: ${icon}" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
 
         echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
         echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-        echo "| ${icon} Overall coverage | **${line_rate}%** |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Overall coverage | **${line_rate}%** |" >> "$GITHUB_STEP_SUMMARY"
         echo "| Threshold | ${threshold}% |" >> "$GITHUB_STEP_SUMMARY"
         echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -115,7 +123,8 @@ runs:
         for cls in tree.findall('.//class'):
             name = cls.attrib['filename']
             rate = float(cls.attrib['line-rate']) * 100
-            print(f'| \`{name}\` | {rate:.1f}% |')
+            icon = ':white_check_mark:' if rate >= $threshold else ':x:'
+            print(f'| \`{name}\` | {icon} {rate:.1f}% |')
         " >> "$GITHUB_STEP_SUMMARY"
         echo "" >> "$GITHUB_STEP_SUMMARY"
         echo "</details>" >> "$GITHUB_STEP_SUMMARY"
