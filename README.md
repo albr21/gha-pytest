@@ -1,10 +1,18 @@
-# <project-name>
+# gha-pytest
 
-<!-- A brief description of the project. -->
+A GitHub Action to run pytest, generating test summary and coverage report.
+Working only on Linux based environment.
 
 ## Usage
 
-<!-- Provide instructions on how to use the project, including code examples if applicable. -->
+```yaml
+steps:
+  - name: Run pytest
+    uses: albr21/gha-pytest@1.0.0
+    with:
+      source-dir: src
+      min-coverage: '80'
+```
 
 ## Contributing
 
