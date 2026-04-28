@@ -1,0 +1,122 @@
+name: gha-pytest
+description: |-
+  GitHub Action to run pytest, generating test summary and coverage report
+
+author: albr21
+branding:
+  icon: check-circle
+  color: green
+
+inputs:
+  source-dir:
+    description: Source directory to measure coverage on
+    required: false
+    default: src
+  min-coverage:
+    description: Minimum coverage percentage required to pass
+    required: false
+    default: '80'
+  command-line-interpreter:
+    description: |-
+      Command line interpreter.
+      By default, it uses `bash`, but you can change it to `sh`.
+    required: false
+    default: bash
+
+runs:
+  using: composite
+  steps:
+    - name: Run pytest
+      run: |-
+        . venv/bin/activate
+        python -m pytest \
+          --cov=${{ inputs.source-dir }} \
+          --cov-report=term-missing \
+          --cov-report=xml:coverage.xml \
+          --cov-fail-under=${{ inputs.min-coverage }} \
+          --junitxml=junit.xml \
+          -v
+      shell: ${{ inputs.command-line-interpreter }}
+
+    - name: Test results summary
+      if: always()
+      run: |-
+        if [ ! -f junit.xml ]; then
+          echo "## :x: Test report not generated" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        echo "## :clipboard: Test Results" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+
+        read tests failures errors skipped <<<$(python3 -c "
+        import xml.etree.ElementTree as ET
+        tree = ET.parse('junit.xml')
+        root = tree.getroot()
+        tests = int(root.attrib.get('tests',0))
+        failures = int(root.attrib.get('failures',0))
+        errors = int(root.attrib.get('errors',0))
+        skipped = int(root.attrib.get('skipped',0))
+        print(tests, failures, errors, skipped)
+        ")
+
+        if [ "$failures" -eq 0 ] && [ "$errors" -eq 0 ]; then
+          icon=":white_check_mark:"
+        else
+          icon=":rotating_light:"
+        fi
+
+        echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+        echo "| ${icon} Total tests | $tests |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Failures | $failures |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Errors | $errors |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Skipped | $skipped |" >> "$GITHUB_STEP_SUMMARY"
+      shell: ${{ inputs.command-line-interpreter }}
+
+    - name: Coverage report summary
+      if: always()
+      run: |-
+        if [ ! -f coverage.xml ]; then
+          echo "## :x: Coverage report not generated" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+
+        echo "## :test_tube: Test Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+
+        line_rate=$(python3 -c "
+        import xml.etree.ElementTree as ET
+        tree = ET.parse('coverage.xml')
+        rate = float(tree.getroot().attrib['line-rate']) * 100
+        print(f'{rate:.1f}')
+        ")
+
+        threshold=${{ inputs.min-coverage }}
+        if [ "$(python3 -c "print('1' if ${line_rate} >= ${threshold} else '0')")" = "1" ]; then
+          icon=":white_check_mark:"
+        else
+          icon=":rotating_light:"
+        fi
+
+        echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+        echo "| ${icon} Overall coverage | **${line_rate}%** |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Threshold | ${threshold}% |" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+
+        echo "<details><summary>Coverage per file</summary>" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| File | Coverage |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|------|----------|" >> "$GITHUB_STEP_SUMMARY"
+        python3 -c "
+        import xml.etree.ElementTree as ET
+        tree = ET.parse('coverage.xml')
+        for cls in tree.findall('.//class'):
+            name = cls.attrib['filename']
+            rate = float(cls.attrib['line-rate']) * 100
+            print(f'| \`{name}\` | {rate:.1f}% |')
+        " >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+      shell: ${{ inputs.command-line-interpreter }}
