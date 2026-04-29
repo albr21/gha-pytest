@@ -10,8 +10,8 @@ steps:
   - name: Run pytest
     uses: albr21/gha-pytest@1.0.0
     with:
-      source-dir: src
-      min-coverage: '80'
+      path: src
+      cov-threshold: '80'
 ```
 
 ## Contributing

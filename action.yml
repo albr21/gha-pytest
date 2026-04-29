@@ -8,11 +8,11 @@ branding:
   color: green
 
 inputs:
-  source-dir:
-    description: Source directory to measure coverage on
+  path:
+    description: Path to the Python code to test
     required: false
     default: src
-  min-coverage:
+  cov-threshold:
     description: Minimum coverage percentage required to pass
     required: false
     default: '80'
@@ -28,12 +28,11 @@ runs:
   steps:
     - name: Run pytest
       run: |-
-        . venv/bin/activate
-        python -m pytest \
-          --cov=${{ inputs.source-dir }} \
+        venv/bin/python -m pytest \
+          --cov=${{ inputs.path }} \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml \
-          --cov-fail-under=${{ inputs.min-coverage }} \
+          --cov-fail-under=${{ inputs.cov-threshold }} \
           --junitxml=junit.xml \
           -v
       shell: ${{ inputs.command-line-interpreter }}
@@ -97,7 +96,7 @@ runs:
         print(f'{rate:.1f}')
         ")
 
-        threshold=${{ inputs.min-coverage }}
+        threshold=${{ inputs.cov-threshold }}
         if [ "$(python3 -c "print('1' if ${line_rate} >= ${threshold} else '0')")" = "1" ]; then
           icon=":white_check_mark:"
         else
